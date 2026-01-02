@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>NFC Inventory</title>
+  <style>
+    body { font-family: Arial; text-align: center; margin-top: 50px; }
+    #item { font-size: 22px; margin-top: 20px; color: green; }
+    #log  { margin-top: 20px; font-size: 14px; color: gray; }
+  </style>
+</head>
+<body>
+
+<h2>NFC Inventory Reader</h2>
+<button onclick="connect()">Connect to ESP32</button>
+
+<div id="item">Waiting...</div>
+<div id="log"></div>
+
+<script>
+const SERVICE_UUID = "12345678-1234-1234-1234-1234567890ab";
+const CHAR_UUID    = "abcd1234-1234-1234-1234-abcdefabcdef";
+
+const items = {
+  "04806652681990": "Matkap",
+  "FF0FCE173D0000": "Laptop Şarj Aleti"
+};
+
+function log(msg) {
+  document.getElementById("log").innerText += msg + "\n";
+}
+
+async function connect() {
+  try {
+    log("Requesting device...");
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ name: "NFC-Inventory" }],
+      optionalServices: [SERVICE_UUID]
+    });
+
+    log("Connecting to GATT...");
+    const server = await device.gatt.connect();
+
+    log("Getting service...");
+    const service = await server.getPrimaryService(SERVICE_UUID);
+
+    log("Getting characteristic...");
+    const characteristic = await service.getCharacteristic(CHAR_UUID);
+
+    log("Starting notifications...");
+    await characteristic.startNotifications();
+
+    characteristic.addEventListener("characteristicvaluechanged", event => {
+      const uid = new TextDecoder().decode(event.target.value);
+      log("UID received: " + uid);
+      document.getElementById("item").innerText =
+        items[uid] || ("Unknown UID: " + uid);
+    });
+
+    log("Connected successfully.");
+  } catch (err) {
+    log("ERROR: " + err);
+  }
+}
+</script>
+
+</body>
+</html>
