@@ -1,67 +1,98 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>NFC Inventory</title>
+  <meta charset="utf-8" />
+  <title>NFC Card Viewer</title>
   <style>
-    body { font-family: Arial; text-align: center; margin-top: 50px; }
-    #item { font-size: 22px; margin-top: 20px; color: green; }
-    #log  { margin-top: 20px; font-size: 14px; color: gray; }
+    body { font-family: Arial; text-align: center; margin-top: 40px; }
+    button { padding: 10px 16px; font-size: 16px; }
+    #status { margin-top: 16px; color: gray; white-space: pre-line; }
+    #cardName { margin-top: 20px; font-size: 24px; }
+    #cardImg { margin-top: 14px; width: 280px; max-width: 80vw; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.15); display: none; }
+    .unknown { color: #b00020; }
   </style>
 </head>
 <body>
 
-<h2>NFC Inventory Reader</h2>
-<button onclick="connect()">Connect to ESP32</button>
+  <h2>NFC Card Viewer</h2>
+  <button onclick="connect()">Connect to ESP32</button>
 
-<div id="item">Waiting...</div>
-<div id="log"></div>
+  <div id="cardName">Waiting...</div>
+  <img id="cardImg" alt="Card image" />
+  <div id="status"></div>
 
 <script>
-const SERVICE_UUID = "12345678-1234-1234-1234-1234567890ab";
-const CHAR_UUID    = "abcd1234-1234-1234-1234-abcdefabcdef";
+  const SERVICE_UUID = "12345678-1234-1234-1234-1234567890ab";
+  const CHAR_UUID    = "abcd1234-1234-1234-1234-abcdefabcdef";
 
-const items = {
-  "04806652681990": "Matkap",
-  "FF0FCE173D0000": "Laptop Şarj Aleti"
+
+const cards = {
+  "FF0FCE173D0000": { name: "Jolly Joker",     img: "images/jolly_joker.jpg" },
+  "04806652681990": { name: "6 of Diamonds",   img: "images/6_of_diamonds.jpg" },
+  "04716552681990": { name: "King of Clubs",   img: "images/king_of_clubs.jpg" },
+  "FF0F2B193D0000": { name: "7 of Hearts",     img: "images/7_of_hearts.jpg" },
+  "FF0FCF173D0000": { name: "7 of Clubs",      img: "images/7_of_clubs.jpg" },
+  "FF0F2D193D0000": { name: "8 of Hearts",     img: "images/8_of_hearts.jpg" },
+  "047C6652681990": { name: "8 of Clubs",      img: "images/8_of_clubs.jpg" },
+  "04786652681990": { name: "10 of Spades",    img: "images/10_of_spades.jpg" },
+  "04756552681990": { name: "1 of Diamonds",   img: "images/1_of_diamonds.jpg" },
+  "FF0F2C193D0000": { name: "Valet of Clubs",  img: "images/valet_of_clubs.jpg" }
 };
 
-function log(msg) {
-  document.getElementById("log").innerText += msg + "\n";
-}
-
-async function connect() {
-  try {
-    log("Requesting device...");
-    const device = await navigator.bluetooth.requestDevice({
-      filters: [{ name: "NFC-Inventory" }],
-      optionalServices: [SERVICE_UUID]
-    });
-
-    log("Connecting to GATT...");
-    const server = await device.gatt.connect();
-
-    log("Getting service...");
-    const service = await server.getPrimaryService(SERVICE_UUID);
-
-    log("Getting characteristic...");
-    const characteristic = await service.getCharacteristic(CHAR_UUID);
-
-    log("Starting notifications...");
-    await characteristic.startNotifications();
-
-    characteristic.addEventListener("characteristicvaluechanged", event => {
-      const uid = new TextDecoder().decode(event.target.value);
-      log("UID received: " + uid);
-      document.getElementById("item").innerText =
-        items[uid] || ("Unknown UID: " + uid);
-    });
-
-    log("Connected successfully.");
-  } catch (err) {
-    log("ERROR: " + err);
+  function setStatus(msg) {
+    document.getElementById("status").innerText = msg;
   }
-}
+
+  function showCard(uidRaw) {
+    const uid = (uidRaw || "").trim().toUpperCase();
+    const cardNameEl = document.getElementById("cardName");
+    const imgEl = document.getElementById("cardImg");
+
+    const card = cards[uid];
+
+    if (!card) {
+      cardNameEl.innerHTML = `<span class="unknown">Unknown UID:</span> ${uid}`;
+      imgEl.style.display = "none";
+      imgEl.src = "";
+      return;
+    }
+
+    cardNameEl.textContent = card.name;
+    imgEl.src = card.img + `?v=${Date.now()}`; // cache bust
+    imgEl.style.display = "block";
+  }
+
+  async function connect() {
+    try {
+      setStatus("Requesting device...");
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ name: "NFC-Inventory" }],
+        optionalServices: [SERVICE_UUID]
+      });
+
+      setStatus("Connecting to GATT...");
+      const server = await device.gatt.connect();
+
+      setStatus("Getting service...");
+      const service = await server.getPrimaryService(SERVICE_UUID);
+
+      setStatus("Getting characteristic...");
+      const characteristic = await service.getCharacteristic(CHAR_UUID);
+
+      setStatus("Starting notifications...");
+      await characteristic.startNotifications();
+
+      characteristic.addEventListener("characteristicvaluechanged", (event) => {
+        const uid = new TextDecoder().decode(event.target.value);
+        setStatus("Connected.\nUID received: " + uid);
+        showCard(uid);
+      });
+
+      setStatus("Connected successfully.");
+    } catch (err) {
+      setStatus("ERROR: " + err);
+    }
+  }
 </script>
 
 </body>
